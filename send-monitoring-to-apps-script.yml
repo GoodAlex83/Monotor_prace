@@ -1,0 +1,43 @@
+name: Send Monitoring CSV To Apps Script
+
+on:
+  workflow_dispatch:
+    inputs:
+      csv_path:
+        description: "Path to monitoring CSV inside the repository"
+        required: false
+        default: "output/monitoring-2026-05-07.csv"
+  schedule:
+    - cron: "15 6 * * *"
+
+jobs:
+  send-monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve CSV path
+        id: csv
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.csv_path }}" ]; then
+            CSV_PATH="${{ github.event.inputs.csv_path }}"
+          else
+            CSV_PATH="$(ls -1 output/monitoring-*.csv | sort | tail -n 1)"
+          fi
+          echo "csv_path=$CSV_PATH" >> "$GITHUB_OUTPUT"
+          echo "Using CSV: $CSV_PATH"
+
+      - name: Send rows to Apps Script
+        env:
+          APPS_SCRIPT_WEBHOOK_URL: ${{ secrets.APPS_SCRIPT_WEBHOOK_URL }}
+          APPS_SCRIPT_SHARED_SECRET: ${{ secrets.APPS_SCRIPT_SHARED_SECRET }}
+        run: |
+          python scripts/send_monitoring_to_apps_script.py \
+            --csv "${{ steps.csv.outputs.csv_path }}"
